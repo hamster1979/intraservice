@@ -1,12 +1,12 @@
-# intraservice
-Golang package for working with Intraservice API
+package helpdesk
 
-# Documentation
-[IntraService API](https://intraservice.ru/upload/iblock/7bc/IntraService_API_v4_46_for_clients.pdf)
+import (
+	"fmt"
 
-# Usage
+	"github.com/hamster1979/intraservice"
+)
 
-```
+func main() {
 	client := intraservice.NewClient(nil, "http://helpdesk.test.com:8888", "aXZhbm92Om15aXZhbm92MjM=")
 
 	///api/task?fields=Id,Name,StatusId
@@ -14,4 +14,5 @@ Golang package for working with Intraservice API
 
 	tasks, _, _ := client.TaskService.List(params)
 	fmt.Printf("Task list:\n%v\n", tasks)
-```
+
+}
