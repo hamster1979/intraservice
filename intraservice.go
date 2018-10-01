@@ -335,7 +335,7 @@ func (service *TaskService) Attr(params *AttrParams) (AttrResponse, *http.Respon
 	return *respond, resp, err
 }
 
-//CreateTaskParams - paramters for Create Task command
+//CreateTaskParams - parameters for Create Task command
 type CreateTaskParams struct {
 	Name             string `url:"Name"`
 	ServiceID        int    `url:"ServiceId"`
@@ -360,13 +360,53 @@ type CreateTaskParams struct {
 	FileTokens       string `url:"FileTokens"`
 	DeletedFiles     string `url:"DeletedFiles"`
 	CustomFields
+	*UserEmailParams
 }
 
-// Create  - returns the attributes of task with changes
+//UserEmailParams - parameters for Create Task command by Email identification user
+type UserEmailParams struct {
+	UserEmail           string `url:"UserEmail"`
+	UserPassword        string `url:"UserPassword"`
+	UserConfirmPassword string `url:"UserConfirmPassword"`
+	UserComments        string `url:"UserComments,omitempty"`
+	UserCompanyID       int    `url:"UserCompanyId"`
+	UserCurrentLanguage string `url:"UserCurrentLanguage, omitempty"`
+	UserLogin           string `url:"UserLogin, omitempty"`
+	UserMobilePhone     string `url:"UserMobilePhone, omitempty"`
+	UserName            string `url:"UserName, omitempty"`
+	UserPhone           string `url:"UserPhone, omitempty"`
+	UserPosition        string `url:"UserPosition, omitempty"`
+	UserRoleID          int    `url:"UserRoleId"`
+	UserTimeZone        string `url:"UserTimeZone, omitempty"`
+}
+
+// Create  - create task with parameters
 func (service *TaskService) Create(params *CreateTaskParams) (TaskResponse, *http.Response, error) {
 	respond := new(TaskResponse)
 	apiError := new(APIError)
 	resp, err := service.sling.New().Post("task").Receive(respond, apiError)
+	if err == nil {
+		err = apiError
+	}
+	return *respond, resp, err
+}
+
+//EditTaskParams - parameters for Edit Task command
+type EditTaskParams struct {
+	CreateTaskParams
+	EvaluationID       int    `url:"EvaluationId, omitempty"`
+	ReactionDate       string `url:"ReactionDate, omitempty"`
+	ReactionDateFact   string `url:"ReactionDateFact, omitempty"`
+	ResolutionDateFact string `url:"ResolutionDateFact, omitempty"`
+	Coordinate         bool   `url:"Coordinate, omitempty"`
+}
+
+// Edit  - edit task by id
+func (service *TaskService) Edit(ID int, params *EditTaskParams) (TaskResponse, *http.Response, error) {
+	respond := new(TaskResponse)
+	apiError := new(APIError)
+	path := fmt.Sprintf("task/%d", ID)
+	resp, err := service.sling.New().Put(path).Receive(respond, apiError)
 	if err == nil {
 		err = apiError
 	}
