@@ -2,22 +2,26 @@ package intraservice
 
 import (
 	"fmt"
+	"io/ioutil"
 	"net/http"
 
 	"github.com/dghubble/sling"
+	"github.com/tidwall/gjson"
 )
 
 // Services
 
 // TaskService provides methods for creating and reading tasks.
 type TaskService struct {
-	sling *sling.Sling
+	httpClient *http.Client
+	Sling      *sling.Sling
 }
 
 // NewTaskService returns a new TaskService.
-func NewTaskService(httpClient *http.Client, baseURL string, baseAUTH string) *TaskService {
+func NewTaskService(httpClient *http.Client, baseURL string) *TaskService {
 	return &TaskService{
-		sling: sling.New().Client(httpClient).Base(baseURL).Set("Authorization", "Basic "+baseAUTH),
+		httpClient: httpClient,
+		Sling:      sling.New().Client(httpClient).Base(baseURL),
 	}
 }
 
@@ -278,15 +282,47 @@ type TaskResponse struct {
 	Task Task `json:"Tasks,omitempty"`
 }
 
+//ReceiveCustom - return JSON respond decoded to nested map
+func (service *TaskService) ReceiveCustom(req *http.Request, failureV interface{}) (map[string]interface{}, *http.Response, error) {
+	var data map[string]interface{}
+	resp, err := service.httpClient.Do(req)
+	if err != nil {
+		return nil, resp, err
+	}
+	// when err is nil, resp contains a non-nil resp.Body which must be closed
+	defer resp.Body.Close()
+
+	// Don't try to decode on 204s
+	if resp.StatusCode == 204 {
+		return nil, resp, nil
+	}
+
+	// Decode from json
+	if failureV != nil {
+		err = nil
+		if code := resp.StatusCode; 200 <= code && code <= 299 {
+			bodyBytes, _ := ioutil.ReadAll(resp.Body)
+			bodyString := string(bodyBytes)
+			data, _ = gjson.Parse(bodyString).Value().(map[string]interface{})
+		} else {
+			return nil, resp, nil
+		}
+	}
+	return data, resp, err
+}
+
 // List  - returns the tasks, selected by parameters
-func (service *TaskService) List(params *TaskListParams) (TasksResponse, *http.Response, error) {
-	respond := new(TasksResponse)
+func (service *TaskService) List(params *TaskListParams) (map[string]interface{}, *http.Response, error) {
 	apiError := new(APIError)
-	resp, err := service.sling.New().Get("task").QueryStruct(params).Receive(respond, apiError)
+	req, err := service.Sling.New().Get("task").QueryStruct(params).Request()
+	if err != nil {
+		return nil, nil, err
+	}
+	data, resp, err := service.ReceiveCustom(req, apiError)
 	if err == nil {
 		err = apiError
 	}
-	return *respond, resp, err
+	return data, resp, err
 }
 
 // Get  - returns the current tasks, selected by parameters
@@ -294,7 +330,7 @@ func (service *TaskService) Get(ID int) (TaskResponse, *http.Response, error) {
 	respond := new(TaskResponse)
 	apiError := new(APIError)
 	path := fmt.Sprintf("task/%d", ID)
-	resp, err := service.sling.New().Get(path).Receive(respond, apiError)
+	resp, err := service.Sling.New().Get(path).Receive(respond, apiError)
 	if err == nil {
 		err = apiError
 	}
@@ -328,7 +364,7 @@ type AttrResponse struct {
 func (service *TaskService) Attr(params *AttrParams) (AttrResponse, *http.Response, error) {
 	respond := new(AttrResponse)
 	apiError := new(APIError)
-	resp, err := service.sling.New().Get("task").Receive(respond, apiError)
+	resp, err := service.Sling.New().Get("task").Receive(respond, apiError)
 	if err == nil {
 		err = apiError
 	}
@@ -384,7 +420,7 @@ type UserEmailParams struct {
 func (service *TaskService) Create(params *CreateTaskParams) (TaskResponse, *http.Response, error) {
 	respond := new(TaskResponse)
 	apiError := new(APIError)
-	resp, err := service.sling.New().Post("task").Receive(respond, apiError)
+	resp, err := service.Sling.New().Post("task").Receive(respond, apiError)
 	if err == nil {
 		err = apiError
 	}
@@ -406,7 +442,7 @@ func (service *TaskService) Edit(ID int, params *EditTaskParams) (TaskResponse, 
 	respond := new(TaskResponse)
 	apiError := new(APIError)
 	path := fmt.Sprintf("task/%d", ID)
-	resp, err := service.sling.New().Put(path).Receive(respond, apiError)
+	resp, err := service.Sling.New().Put(path).Receive(respond, apiError)
 	if err == nil {
 		err = apiError
 	}
@@ -422,8 +458,8 @@ type Client struct {
 }
 
 // NewClient returns a new Client
-func NewClient(httpClient *http.Client, baseURL string, baseAUTH string) *Client {
+func NewClient(httpClient *http.Client, baseURL string) *Client {
 	return &Client{
-		TaskService: NewTaskService(httpClient, baseURL, baseAUTH),
+		TaskService: NewTaskService(httpClient, baseURL+"/api/"),
 	}
 }
